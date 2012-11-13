@@ -1,12 +1,14 @@
 package de.jwueller.wavepirate;
 
 import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.logging.Level;
@@ -28,6 +30,7 @@ public class Extractor {
         (byte) 0x45  // E
     };
 
+    private static final int COPY_BUFFER_SIZE = 0x2000;
     private static final int EOF = 0xFFFFFFFF;
 
     private File sourceFile;
@@ -73,16 +76,28 @@ public class Extractor {
 
                 // Create the output file.
                 File outputFile = new File(outputDirectory, sourceFile.getName() + "_" + extractedFileCount + ".wav");
-                FileOutputStream output = new FileOutputStream(outputFile);
+                OutputStream output = new BufferedOutputStream(new FileOutputStream(outputFile));
                 output.write(RIFF_PATTERN);
                 output.write(sizeBuffer);
                 output.write(WAVE_PATTERN);
 
-                // TODO: This should be done in chunks, but i'll leave this here
-                // for testing purposes.
-                byte[] waveBuffer = new byte[(int) contentSize];
-                source.readFully(waveBuffer);
-                output.write(waveBuffer);
+                // Copy the wave data over to the output file in chunks.
+                long remainingContentSize = contentSize;
+
+                while (remainingContentSize > 0) {
+                    byte[] waveBuffer;
+
+                    if (remainingContentSize > COPY_BUFFER_SIZE) {
+                        waveBuffer = new byte[COPY_BUFFER_SIZE];
+                        remainingContentSize -= COPY_BUFFER_SIZE;
+                    } else {
+                        waveBuffer = new byte[(int) remainingContentSize];
+                        remainingContentSize = 0;
+                    }
+
+                    source.readFully(waveBuffer);
+                    output.write(waveBuffer);
+                }
 
                 output.close();
             }
